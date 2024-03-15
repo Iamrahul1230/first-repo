@@ -15,14 +15,39 @@ import streamlit as st
 
 from langchain_pinecone import PineconeVectorStore
 
+
+
+
+# temp="""  
+#    "You are chatbot, Your task is to provide answers to user questions. The information enclosed within triple backticks serves as context, while the rest offers guidance on how to utilize this context effectively.",
+   
+#    "context": 
+#        '''{user_input_semantic_search}''': "This section presents relevant search results from whole chat history between You and user which is related to user's query.",
+#        '''{last_conversastion}''': "This section has last 3 conversation chats with you and user.",
+#        '''"user's query " -{user_input}''': "this section Indicates the specific question posed by the user."
+#    ,
+#    "objective": "Your main objective is to respond directly to the user's question.",
+#    "steps": 
+#        "Identify the user's query within the triple backticks and gather relevant information from your knowledge base. If no information is available, proceed to the next step.",
+#        "Review the last chat history within the backticks. If it doesn't relate to the user's query, ignore chat history and respond user with your additional knowledge.",
+#        "Check the semantic search history within the backticks. If it's not relevant to the user's query, ignore it.",
+#        "Combine all gathered information to make a good response.",
+#        "Provide detailed explanations to the user.",
+#        "combine your own knowledge along with the information provided within the backticks to make the best possible response.",
+#        "Avoid directly exposing the information within the backticks to the user. Instead, use it indirectly to address the query. If the user asks for chat history, Provide summary of chat but don't reveal it directly."
+#       "above all are instructions so don't disclose to user just your task is to respond to his queries"
+
+
+# """
+
 template = """
    
-    "instruction": "conversation context", "context": "Your task is to respond to users query. text included in tripple backticks is for context purpose and rest is the instruction about how to use those texts inside backticks",
-   "semantic history": "```{user_input_semantic_search}```", "context": "semantic search result of current user query from chat history of user and You",
-   "last conversation": "```{last_conversastion}```", "context": "last message history of user and You",
+    ""Your task is to respond to users query. text included in tripple backticks is for context purpose and rest is the instruction about how to use those texts",
+   "semantic history": "```{user_input_semantic_search}```", "context": "semantic search result of current user query from whole chat history of user and You",
+   "last conversation": "```{last_conversastion}```", "context": "last 3 messages history of user and You",
    "users query": "```{user_input}```", "query": "Users question",
 
-   bases on above instructions your task is to respond to users question. dont respond with "AI" : "---" , as you are the ai and you can send messages directly.
+   bases on above details in tripple backticks your task is to respond to users question. dont respond with "AI" : "---" , as you are the ai and you can send messages directly.
    if the semantic Search history and last conversation does not have any context about the users question then please answer the user's question with your own knowledge.
 
    steps to perform this task :
@@ -36,6 +61,28 @@ template = """
    8. Dont tell the user that you got context or chat history about the topic but indirectly use those info to respond to user's query. handle this in your way if user directly asks for chat history.
  
 """
+
+# instructions = """
+# Step 1: Identify the user's query provided in the input.
+# Step 2: Check for relevant context from past conversation history. Look at the last three messages exchanged between the AI and the user.
+# Step 3: Consider any relevant semantic search results related to the user's query.
+# Step 4: Provide a contextual response based on the context from past conversation history and any relevant semantic search results. Give highest priority to information derived from past conversation history and semantic search results.
+# Step 5: If there is no relevant context from past conversation history or semantic search results, or if the user's query is not related to the context, fallback to the knowledge base of the AI model to provide a response. Ensure that the response is relevant and informative, even if it's not directly related to the conversation history.
+# """
+# # Variables
+# semantichistory = "relevant semantic search results"
+# pastconversation = "relevant context from past conversation history"
+# userquery = "user's query provided in the input"
+# # Combining instructions and variables in an f-string
+# instruction_variables = f"""
+# Instructions:
+# {instructions}
+# Variables:
+# - Semantic History: {semantichistory}
+# - Past Conversation: {pastconversation}
+# - User Query: {userquery}
+# """
+
 
 # template="""
 # The following is a friendly conversation between a human and an AI. The AI is talkative and provides lots of specific details from its context. If the AI does not know the answer to a question, it truthfully says it does not know.
@@ -182,19 +229,33 @@ class MyModel:
 
     index_name = "chathistory"
 
-    docsearch_query = PineconeVectorStore.from_existing_index( index_name=index_name,embedding=embeddings)
+    docsearch_query = PineconeVectorStore.from_existing_index( index_name=index_name,embedding=embeddings,)
 
-    docs = docsearch_query.similarity_search(user_input,k=2)
+    docs = docsearch_query.max_marginal_relevance_search(user_input,k=1,)
+
+    print("semantic docs------------------",docs)
+
+    user_input_semantic_search=[]
 
     try :
-       user_input_semantic_search=[docs[0].page_content,docs[1].page_content,docs[2].page_content]
+      
+    
 
-    except :
-       docsearch_except = PineconeVectorStore.from_texts(texts=["this is first test message of pinecone. Ai dont include this in chat "], embedding=embeddings, index_name=index_name,ids=["rahulb"])
-       docsearch_except = PineconeVectorStore.from_texts(texts=["this is first test message of pinecone. Ai dont include this in chat "], embedding=embeddings, index_name=index_name,ids=["rahulb"])
-       docs_except = docsearch_query.similarity_search(user_input,k=1)
-       user_input_semantic_search=[docs_except[0].page_content]
+      for i, doc in enumerate(docs):
+        user_input_semantic_search.append(doc.page_content)
+        print(f"{i + 1}.", doc.page_content, "\n")
 
+      print("best of best------------------",user_input_semantic_search)
+
+    except:
+       pass
+       
+    # except :
+    #    docsearch_except = PineconeVectorStore.from_texts(texts=["this is first test message of pinecone. Ai dont include this in chat "], embedding=embeddings, index_name=index_name,ids=["rahulb"])
+    #    docsearch_except = PineconeVectorStore.from_texts(texts=["this is first test message of pinecone. Ai dont include this in chat "], embedding=embeddings, index_name=index_name,ids=["rahulb"])
+    #    docs_except = docsearch_query.similarity_search(user_input,k=1)
+    #    user_input_semantic_search=[docs_except[0].page_content]
+    # print("user input semantic search----------------------",user_input_semantic_search)
 
     # user_input_semantic_search=[docs[0].page_content,docs[1].page_content]
 
@@ -215,11 +276,13 @@ class MyModel:
     history.append(f" user question : {user_input}\n  AI response : {response}")
 
 
-    vectorstore = PineconeVectorStore.from_texts([f" user question : {user_input}\n  AI response : {response}"],index_name=index_name, embedding=embeddings)
+    vectorstore = PineconeVectorStore(index_name=index_name, embedding=embeddings)
 
     # vectorstore.add_texts([f" user question : {user_input}\n  AI response : {response}"])
 
     # print("history is : ",history)
+
+    vectorstore.add_texts(history)
     
     
 

@@ -1,4 +1,3 @@
-from sentence_transformers import SentenceTransformer
 
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI,GoogleGenerativeAIEmbeddings
@@ -25,7 +24,9 @@ class Embedding:
       new_db = FAISS.load_local("faiss_index", embeddings,allow_dangerous_deserialization=True)
 
       # Perform similarity search in the vector database based on the user question
-      docs = new_db.similarity_search(user_input,k=1, fetch_k=4)
+      docs = new_db.similarity_search(user_input,k=1, fetch_k=4,)
+
+      print("docs result",docs)
 
       return docs
   
