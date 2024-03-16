@@ -24,11 +24,14 @@ class Embedding:
       new_db = FAISS.load_local("faiss_index", embeddings)
 
       # Perform similarity search in the vector database based on the user question
-      docs = new_db.similarity_search(user_input,k=1, fetch_k=4,)
+      docs = new_db.similarity_search(user_input,k=5)
 
-      print("docs result",docs)
+      print("docs result;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;",docs)
 
-      return docs
+      list_doc=[doc.page_content for doc in docs]
+      print(" result;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;",list_doc)
+
+      return list_doc
   
   
   def get_embedding(self,sentences,user_input):     
@@ -41,8 +44,7 @@ class Embedding:
     # Save the vector store locally with the name "faiss_index"
     vector_store.save_local("faiss_index")
 
-    serached_result=self.user_inputs(user_input)[0].page_content
-
+    serached_result=self.user_inputs(user_input)
     return serached_result
 
   

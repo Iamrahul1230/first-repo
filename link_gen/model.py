@@ -5,7 +5,6 @@ from langchain.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI,GoogleGenerativeAIEmbeddings
 from langchain.chains import LLMChain
  
-from datetime import datetime
 
 import pandas as pd
 
@@ -14,6 +13,10 @@ from langchain_community.vectorstores import FAISS
 import streamlit as st
 
 from langchain_pinecone import PineconeVectorStore
+
+import datetime
+
+from link_gen.pinecone_index import PineConeIndex
 
 
 
@@ -71,26 +74,28 @@ Text included in triple backticks is for context.
 
 **Context:**
 
-* **Semantic History:** ```{user_input_semantic_search}``` (Search results based on user input and chat history)
-* **Last Conversation:** ```{last_conversastion}``` (Last 3 messages between you and the user)
+* **Semantic History:** ```{user_input_semantic_search}``` (Search results based on user input and chat history strictly ignore this part if it's not related to user's query)
+* **Last Conversation:** ```{last_conversastion}``` (Last 3 messages between you and the user, use this part based on relation with quer.)
 * **User's Query:** ```{user_input}```
 
 **Steps:**
 
 1. Analyze the user's query within the backticks.
 2. Gather relevant information from your knowledge base.
-3. forget semantic search history if it says, I do not have access to real-time information, therefore I cannot provide you with the latest news.
-3. Combine the information with the provided context to understand the user's intent.
-4. Craft a detailed and informative response.
-5. Add your own insights and knowledge for a more valuable response.
+3. forget semantic search history if it contains: I do not have access to real-time information, therefore I cannot provide you with the latest news.
+4. Combine the information with the provided context to understand the user's intent.
+5. Craft a detailed and informative response.
+6. Add your own insights and knowledge for a more valuable response.
+7. **Remember:** before going further always double check if the user query is referring to previous chats, if yes then you can answer with the context provided if not then go to next step.
 
 **Real-Time Queries:**
 
 1. Determine if the query requires real-time information.
 2. Assess your confidence in providing an accurate answer.
-3. If information is unavailable or real-time updates are needed, strictly respond with just "Not Available" without any other word.
+3. most important : If information is unavailable or real-time updates are needed, strictly respond with just "Not Available" without any other word.
 
 **Remember:** Combine semantic history and last conversation to understand the user's intent and provide accurate and relevant responses ignore irrelevant part.
+**Remember:** remember if the user appreciated you it means its related to last conversation context and not related to semantic search, so handle this type of queries with care.
 """
 
 # instructions = """
@@ -192,23 +197,9 @@ class MyModel:
       return docs
   
   
-  def chat_history(self,df,user_input):     
-    # Create embeddings using a Google Generative AI model
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+ 
 
-    # Create a vector store using FAISS from the provided text chunks and embeddings
-    vector_store = FAISS.from_texts(df.history, embedding=embeddings)
 
-    # Save the vector store locally with the name "faiss_index"
-    vector_store.save_local("faiss_index")
-
-    serached_result=self.user_inputs(user_input)[0].page_content
-
-    print(serached_result)
-
-    print(df)
-
-    return serached_result
 
   
   
@@ -234,10 +225,14 @@ class MyModel:
         for user_content, assistant_content in zip(user_content_list, assistant_content_list)
     ]
 
-    # Print the combined content list
+    
+    now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=5, minutes=30)))
+    formatted_time=now.strftime("%Y-%m-%d %H:%M:%S")
+
+
     final_chat=[]
     for content in combined_content_list:
-        final_chat.append(content)
+        final_chat.append(f"{formatted_time} :{content}")
 
     last_conversastion=final_chat[-2:]
     last_conversastion=list(reversed(last_conversastion))
@@ -248,43 +243,11 @@ class MyModel:
     # mes_last=mes[0:4]
     # new_mes=mes[:3]
     # print("laste 1 message---------------------------------------------------------------",new_mes)
-      
 
+    obj_pinecone=PineConeIndex()  
+    user_input_semantic_search=obj_pinecone.get_from_pinecone(user_input)
 
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-
-    index_name = "chathistory"
-
-    docsearch_query = PineconeVectorStore.from_existing_index( index_name=index_name,embedding=embeddings,)
-
-    docs = docsearch_query.max_marginal_relevance_search(user_input,k=1,fetch_k=3)
-
-    print("semantic docs------------------",docs)
-
-    user_input_semantic_search=[]
-
-    try :
-      
     
-
-      for i, doc in enumerate(docs):
-        user_input_semantic_search.append(doc.page_content)
-        print(f"{i + 1}.", doc.page_content, "\n")
-
-      print("best of best------------------",user_input_semantic_search)
-
-    except:
-       pass
-       
-    # except :
-    #    docsearch_except = PineconeVectorStore.from_texts(texts=["this is first test message of pinecone. Ai dont include this in chat "], embedding=embeddings, index_name=index_name,ids=["rahulb"])
-    #    docsearch_except = PineconeVectorStore.from_texts(texts=["this is first test message of pinecone. Ai dont include this in chat "], embedding=embeddings, index_name=index_name,ids=["rahulb"])
-    #    docs_except = docsearch_query.similarity_search(user_input,k=1)
-    #    user_input_semantic_search=[docs_except[0].page_content]
-    # print("user input semantic search----------------------",user_input_semantic_search)
-
-    # user_input_semantic_search=[docs[0].page_content,docs[1].page_content]
-
     print(user_input_semantic_search)
 
     llm=ChatGoogleGenerativeAI(model="gemini-1.0-pro",temperature=0.9,max_output_tokens=4096)  
@@ -303,38 +266,15 @@ class MyModel:
        pass
     
     else:
+      obj_pinecone.add_to_pinecone(user_input,response)
 
-      history.append(f" user question : {user_input}\n  AI response : {response}")
-
-
-      vectorstore = PineconeVectorStore(index_name=index_name, embedding=embeddings)
-
-      # vectorstore.add_texts([f" user question : {user_input}\n  AI response : {response}"])
-
-      # print("history is : ",history)
-
-      vectorstore.add_texts(history)
-    
-    
-
-    # final = {"answer": response}
-    
     return response
   
 
 
-
   def query_maker(self,user_input):
 
-    # if "HISTORY" not in st.session_state:
-    #   st.session_state.HISTORY = []
-
-
-    # if "HISTORY" not in st.session_state.HISTORY:
-    #   user_input_semantic_search="This is first time running this tool"
-
-
-    current_time = datetime.now()
+    current_time = datetime.datetime.now()
 
     full_date = current_time.strftime("%Y-%m-%d")
 
@@ -348,18 +288,6 @@ class MyModel:
     chain=LLMChain(llm=llm,prompt=prompt)
     
     response=chain.predict(user_input=user_input,full_date=full_date)
-
-
-
-    # st.session_state.HISTORY.append({"history":f"user input : {user_input} \n AI Response {response}"})
-
-    # df=pd.DataFrame(st.session_state.HISTORY)
-
-    # user_input_semantic_search=self.chat_history(df,user_input)
-
-    # print(user_input_semantic_search)
-
-    
 
     final = {"answer": response}
     
