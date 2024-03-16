@@ -45,7 +45,7 @@ def main():
 
     # print(st.session_state.messages)
 
-    if "not found" in answer or "Not found" in answer:
+    if "Not Available" in answer or "not Available" in answer:
     
 
       new_query=my_model.query_maker(user_input) 

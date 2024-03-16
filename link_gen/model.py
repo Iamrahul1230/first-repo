@@ -39,27 +39,58 @@ from langchain_pinecone import PineconeVectorStore
 
 
 # """
+# Politely inform the user that for more comprehensive information, they can search on reputable search engines like Google or consult other reliable sources.
+# 4. Offer guidance on refining search queries or suggest specific keywords or topics to explore further.
+# 5. Encourage users to critically evaluate the information they find and cross-reference it with multiple sources to ensure accuracy and reliability.
+
+template0 = """
+
+By thinking like a human, your task is to respond to the user's query in as much details as possible. The text included in triple backticks is for context purposes, and the rest provides instructions on how to use that context.
+
+**Variables:**
+- **User Query:** `{user_input}`
+- **Last 3 Chat History** between you and the user: `{last_conversastion}`
+- **Semantic Search Results** from the whole chat history: `{user_input_semantic_search}`
+
+**Priority Order:**
+always Remeber to relate users query with last 3 chats and semantic search history and your knowledge base and understand its context and know what user wants.
+1. **Your Knowledge Base:** If the information is available in your knowledge base, respond with the relevant details.
+2. **Last 3 Chats:** Always take context from last 3 chats and users question If the user's question relates to a topic discussed within the last three chat history, provide a response based on the context from the previous dialogue.
+3. **Semantic Search History:** check if the information is available within the existing conversation context or recent semantic search results. If yes then respond with response and no need to go to next step. 
+4. combine info from your knowledge base, last 3 chats and semantic search history and respond in detail.
+5.If the query pertains to the latest information (e.g., current market trends or financial data or with high confidence you think things might have changed since you have data before 2021) then, respond with "Not Available" to indicate that external search is needed.
+"""
+
+# 7. never reveal the info inside the backticks directly to the user but you can use that info inside backticks to answer the users query.
+#    8. Dont tell the user that you got context or chat history about the topic but indirectly use those info to respond to user's query. handle this in your way if user directly asks for chat history.
+
 
 template = """
-   
-    ""Your task is to respond to users query. text included in tripple backticks is for context purpose and rest is the instruction about how to use those texts",
-   "semantic history": "```{user_input_semantic_search}```", "context": "semantic search result of current user query from whole chat history of user and You",
-   "last conversation": "```{last_conversastion}```", "context": "last 3 messages history of user and You",
-   "users query": "```{user_input}```", "query": "Users question",
+By thinking like a human, your task is to respond directly to the user's query. 
+Text included in triple backticks is for context.
 
-   bases on above details in tripple backticks your task is to respond to users question. dont respond with "AI" : "---" , as you are the ai and you can send messages directly.
-   if the semantic Search history and last conversation does not have any context about the users question then please answer the user's question with your own knowledge.
+**Context:**
 
-   steps to perform this task :
-   1. check what is users query inside backticks and look it in your own knowledge base and grab info about the users question if you don't have info about the question then look step 2.
-   2. check last chat history inside backticks and if the last history is not related with users query then ignore it. plus add your knowledge to generate best response
-   3. check semantic search history inside backticks, this history can be used to get context about past conversation and what u said about perticular topic. If this semantic history is not related with users query then ignore it.
-   4. combine overall result and use your brain to takle the query.
-   5. while explaining to the user please explain it as much as possible. dont give short answers about perticular topic
-   6. finally add your own info about the topic with the all the info provided inside backticks to generate best response.
-   7. never reveal the info inside the backticks directly to the user but you can use that info inside backticks to answer the users query.
-   8. Dont tell the user that you got context or chat history about the topic but indirectly use those info to respond to user's query. handle this in your way if user directly asks for chat history.
- 
+* **Semantic History:** ```{user_input_semantic_search}``` (Search results based on user input and chat history)
+* **Last Conversation:** ```{last_conversastion}``` (Last 3 messages between you and the user)
+* **User's Query:** ```{user_input}```
+
+**Steps:**
+
+1. Analyze the user's query within the backticks.
+2. Gather relevant information from your knowledge base.
+3. forget semantic search history if it says, I do not have access to real-time information, therefore I cannot provide you with the latest news.
+3. Combine the information with the provided context to understand the user's intent.
+4. Craft a detailed and informative response.
+5. Add your own insights and knowledge for a more valuable response.
+
+**Real-Time Queries:**
+
+1. Determine if the query requires real-time information.
+2. Assess your confidence in providing an accurate answer.
+3. If information is unavailable or real-time updates are needed, strictly respond with just "Not Available" without any other word.
+
+**Remember:** Combine semantic history and last conversation to understand the user's intent and provide accurate and relevant responses ignore irrelevant part.
 """
 
 # instructions = """
@@ -127,17 +158,11 @@ template = """
 
 
 template2 = """
-    As a helpful assistant called "Rahul" created by "Rahul Bhole", your task is to respond to user queries. Below is the user input enclosed within triple backticks:
-
+    As a helpful assistant, your task is to respond to user queries. Below is the user input enclosed within triple backticks:
     ```{user_input}```
-
-
-    user chat history: {user_input_semantic_search}
-
     today's date : {full_date}
-
-    Your objective is to generate a concise and grammatically correct query based on the user's question. This query will be used to search for the latest details on Google. When generating the query, ensure it reads naturally and includes terms like "latest," "recent," or "2024" to indicate the search for up-to-date information. Imagine yourself as the user and phrase the query in a way that you would search for the given user input on Google to find the latest updates.
-
+    Your objective is to generate a concise and grammatically correct query based on the user's question. This query will be used to search for the latest details on Google. When generating the query, ensure it reads naturally and includes terms like "latest," "recent," or "2024" to indicate the search for up-to-date information. 
+    Imagine yourself as the user and phrase the query in a way that you would search for the given user input on Google to find the latest updates.
     Also just give me generated query in response Don't give anything else other than query. 
 """
 
@@ -215,6 +240,7 @@ class MyModel:
         final_chat.append(content)
 
     last_conversastion=final_chat[-2:]
+    last_conversastion=list(reversed(last_conversastion))
 
     print("last message to ai -----------", last_conversastion)
 
@@ -231,7 +257,7 @@ class MyModel:
 
     docsearch_query = PineconeVectorStore.from_existing_index( index_name=index_name,embedding=embeddings,)
 
-    docs = docsearch_query.max_marginal_relevance_search(user_input,k=1,)
+    docs = docsearch_query.max_marginal_relevance_search(user_input,k=1,fetch_k=3)
 
     print("semantic docs------------------",docs)
 
@@ -265,7 +291,7 @@ class MyModel:
  
     prompt=PromptTemplate(
     input_variables=["user_input","user_input_semantic_search","last_conversastion"],
-    template=template  )
+    template=template )
 
     chain=LLMChain(llm=llm,prompt=prompt)
 
@@ -273,16 +299,21 @@ class MyModel:
     
     response=chain.predict(user_input=user_input,user_input_semantic_search=user_input_semantic_search,last_conversastion=last_conversastion)
 
-    history.append(f" user question : {user_input}\n  AI response : {response}")
+    if "Not Available" in response:
+       pass
+    
+    else:
+
+      history.append(f" user question : {user_input}\n  AI response : {response}")
 
 
-    vectorstore = PineconeVectorStore(index_name=index_name, embedding=embeddings)
+      vectorstore = PineconeVectorStore(index_name=index_name, embedding=embeddings)
 
-    # vectorstore.add_texts([f" user question : {user_input}\n  AI response : {response}"])
+      # vectorstore.add_texts([f" user question : {user_input}\n  AI response : {response}"])
 
-    # print("history is : ",history)
+      # print("history is : ",history)
 
-    vectorstore.add_texts(history)
+      vectorstore.add_texts(history)
     
     
 
@@ -295,12 +326,12 @@ class MyModel:
 
   def query_maker(self,user_input):
 
-    if "HISTORY" not in st.session_state:
-      st.session_state.HISTORY = []
+    # if "HISTORY" not in st.session_state:
+    #   st.session_state.HISTORY = []
 
 
-    if "HISTORY" not in st.session_state.HISTORY:
-      user_input_semantic_search="This is first time running this tool"
+    # if "HISTORY" not in st.session_state.HISTORY:
+    #   user_input_semantic_search="This is first time running this tool"
 
 
     current_time = datetime.now()
@@ -311,22 +342,20 @@ class MyModel:
     llm=ChatGoogleGenerativeAI(model="gemini-1.0-pro",temperature=0.9,max_output_tokens=4096)  
   
     prompt=PromptTemplate(
-    input_variables=["user_input","full_date","user_input_semantic_search"],
+    input_variables=["user_input","full_date",],
     template=template2  )
 
     chain=LLMChain(llm=llm,prompt=prompt)
     
-    response=chain.predict(user_input=user_input,full_date=full_date,user_input_semantic_search=user_input_semantic_search)
+    response=chain.predict(user_input=user_input,full_date=full_date)
 
 
 
-    st.session_state.HISTORY.append({"history":f"user input : {user_input} \n AI Response {response}"})
+    # st.session_state.HISTORY.append({"history":f"user input : {user_input} \n AI Response {response}"})
 
-    
+    # df=pd.DataFrame(st.session_state.HISTORY)
 
-    df=pd.DataFrame(st.session_state.HISTORY)
-
-    user_input_semantic_search=self.chat_history(df,user_input)
+    # user_input_semantic_search=self.chat_history(df,user_input)
 
     # print(user_input_semantic_search)
 

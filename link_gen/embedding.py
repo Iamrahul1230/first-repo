@@ -21,7 +21,7 @@ class Embedding:
       embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
 
       # Load a FAISS vector database from a local file
-      new_db = FAISS.load_local("faiss_index", embeddings,allow_dangerous_deserialization=True)
+      new_db = FAISS.load_local("faiss_index", embeddings)
 
       # Perform similarity search in the vector database based on the user question
       docs = new_db.similarity_search(user_input,k=1, fetch_k=4,)
